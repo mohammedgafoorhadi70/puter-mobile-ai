@@ -1,0 +1,289 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Puter AI Mobile</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    background: #101114;
+    color: #f4f4f5;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+}
+
+header {
+    padding: 16px;
+    background: #19171c;
+    border-bottom: 1px solid #333;
+}
+
+header h2 {
+    margin: 0 0 10px;
+}
+
+select, button, textarea {
+    font: inherit;
+}
+
+select {
+    width: 100%;
+    background: #27252c;
+    color: white;
+    padding: 11px;
+    border: 1px solid #444;
+    border-radius: 10px;
+}
+
+#signin {
+    margin-top: 10px;
+    background: #37323f;
+    color: white;
+    border: 0;
+    border-radius: 9px;
+    padding: 10px;
+    width: 100%;
+}
+
+#chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.message {
+    padding: 13px;
+    margin: 10px 0;
+    border-radius: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.user {
+    background: #34313c;
+    margin-left: 15%;
+}
+
+.ai {
+    background: #1d1b21;
+    border: 1px solid #34313a;
+    margin-right: 5%;
+}
+
+#status {
+    color: #aaa;
+    font-size: 13px;
+    padding: 4px 15px;
+}
+
+footer {
+    padding: 12px;
+    background: #19171c;
+    border-top: 1px solid #333;
+}
+
+.inputbox {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+textarea {
+    flex: 1;
+    resize: none;
+    max-height: 150px;
+    background: #27252c;
+    color: white;
+    border: 1px solid #444;
+    border-radius: 12px;
+    padding: 12px;
+    outline: none;
+}
+
+#send {
+    background: #a78bfa;
+    color: #15121a;
+    border: 0;
+    border-radius: 12px;
+    padding: 13px 18px;
+    font-weight: bold;
+}
+
+#send:disabled {
+    opacity: 0.5;
+}
+
+.credit {
+    text-align: center;
+    color: #777;
+    font-size: 12px;
+    padding-top: 8px;
+}
+
+.credit a {
+    color: #aaa;
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<header>
+    <h2>⚡ AI Assistant</h2>
+
+    <select id="model">
+        <option value="gpt-5.4-nano">GPT-5.4 Nano</option>
+        <option value="claude-sonnet-5-5">Claude Sonnet 5.5</option>
+        <option value="claude-opus-5-5">Claude Opus 5.5</option>
+        <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
+    </select>
+
+    <button id="signin">Sign in to Puter</button>
+</header>
+
+<div id="chat">
+    <div class="message ai">
+        Hello! I'm your AI development assistant.
+        Ask me anything about coding, debugging, projects or learning.
+    </div>
+</div>
+
+<div id="status">Ready</div>
+
+<footer>
+    <div class="inputbox">
+        <textarea id="prompt" rows="1"
+            placeholder="Ask anything..."></textarea>
+        <button id="send">Send</button>
+    </div>
+
+    <div class="credit">
+        Powered by <a href="https://developer.puter.com"
+        target="_blank">Puter</a>
+    </div>
+</footer>
+
+</div>
+
+<script src="https://js.puter.com/v2/"></script>
+
+<script>
+const chat = document.getElementById("chat");
+const promptBox = document.getElementById("prompt");
+const sendBtn = document.getElementById("send");
+const statusBox = document.getElementById("status");
+const modelSelect = document.getElementById("model");
+
+let busy = false;
+
+function addMessage(text, type) {
+    const div = document.createElement("div");
+    div.className = "message " + type;
+    div.textContent = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+    return div;
+}
+
+function errorText(error) {
+    if (typeof error === "string") return error;
+
+    if (error?.msg) return error.msg;
+    if (error?.message) return error.message;
+    if (error?.error?.message) return error.error.message;
+
+    try {
+        return JSON.stringify(error, null, 2);
+    } catch {
+        return String(error);
+    }
+}
+
+async function sendMessage() {
+    const text = promptBox.value.trim();
+
+    if (!text || busy) return;
+
+    busy = true;
+    sendBtn.disabled = true;
+
+    promptBox.value = "";
+    addMessage(text, "user");
+
+    const reply = addMessage("", "ai");
+
+    statusBox.textContent = "Connecting...";
+    
+    try {
+        const model = modelSelect.value;
+
+        const response = await puter.ai.chat(text, {
+            model: model,
+            stream: true
+        });
+
+        statusBox.textContent = "Generating...";
+
+        for await (const part of response) {
+            if (part.type === "text") {
+                reply.textContent += part.text;
+                chat.scrollTop = chat.scrollHeight;
+            }
+
+            if (part.type === "error") {
+                throw new Error(part.message);
+            }
+        }
+
+        statusBox.textContent = "Completed";
+
+    } catch (error) {
+        reply.textContent = "Error: " + errorText(error);
+        statusBox.textContent = "Request failed";
+        console.error("Puter AI error:", error);
+
+    } finally {
+        busy = false;
+        sendBtn.disabled = false;
+        promptBox.focus();
+    }
+}
+
+sendBtn.addEventListener("click", sendMessage);
+
+promptBox.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+document.getElementById("signin").addEventListener("click", async () => {
+    try {
+        statusBox.textContent = "Opening Puter sign-in...";
+        await puter.auth.signIn();
+        statusBox.textContent = "Signed in successfully";
+    } catch (error) {
+        statusBox.textContent = "Sign-in failed: " + errorText(error);
+        console.error(error);
+    }
+});
+</script>
+
+</body>
+</html>
